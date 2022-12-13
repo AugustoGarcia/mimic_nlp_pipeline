@@ -16,13 +16,13 @@ from sklearn import model_selection
 def create_folds(dataset,args):
     positives=[]
     negatives=[]
-    for subject_id in dataset['id'].unique():
-        subject_data=dataset[dataset['id']==subject_id]
+    for subject_id in dataset[args.balance_id].unique():
+        subject_data=dataset[dataset[args.balance_id]==subject_id]
         subject_data=subject_data.reset_index()
         if subject_data['label'].sum()>0:
-            positives.append(subject_data.at[0,'id'])
+            positives.append(subject_data.at[0,args.balance_id])
         else:
-            negatives.append(subject_data.at[0,'id'])
+            negatives.append(subject_data.at[0,args.balance_id])
     
     included_admissions=positives+negatives
 
@@ -46,11 +46,11 @@ def create_folds(dataset,args):
         X_train,X_val,y_train,y_val = model_selection.train_test_split(X_train_val, y_train_val, train_size=1-(1.1*args.test_size), random_state=42)
 
         for idx in dataset.index:
-            if dataset.at[idx,'id'] in list(X_train):
+            if dataset.at[idx,args.balance_id] in list(X_train):
                 dataset.at[idx,'fold_'+str(fold)]='train'
-            if dataset.at[idx,'id'] in list(X_val):
+            if dataset.at[idx,args.balance_id] in list(X_val):
                 dataset.at[idx,'fold_'+str(fold)]='val'
-            if dataset.at[idx,'id'] in list(X_test):
+            if dataset.at[idx,args.balance_id] in list(X_test):
                 dataset.at[idx,'fold_'+str(fold)]='test'
                 
         fold=fold+1
@@ -96,12 +96,11 @@ def create_specific_dataset(df,args):
         reduced_df=pd.DataFrame(columns=list(df.columns))
         for id in df['hadm_id'].unique():
             id_df=df[df['hadm_id']==id]
-
             id_df=id_df.sort_values(by=['chartdate'],ascending=False)
             id_df=id_df.reset_index(drop=True)
             id_df=id_df[id_df['chartdate']==id_df.at[0,'chartdate']]
+            
             id_df=id_df.reset_index(drop=True)
-
             text=''
             for idx in id_df.index:
                 text+=id_df.at[idx,'text']+' '    
@@ -112,9 +111,7 @@ def create_specific_dataset(df,args):
             
         df=reduced_df
     
-    df=df.rename(columns={"hadm_id":'id'})
-    df=df[['id','text','label']]
-    df=df.reset_index()
+    df=df.reset_index(drop=True)
     return df
 
 ######################################################################################
@@ -169,9 +166,14 @@ def create_dataset(args):
 
     # This is the dataset that now gets subdivided by tasks
     dataset=create_specific_dataset(df_adm_notes,args)
-
     dataset=create_folds(dataset,args)
-    
+        
+    dataset=dataset.rename(columns={"hadm_id":'id'})
+
+    folds=['fold_'+str(n) for n in range(args.folds)]
+    keep_columns=['id','text','label']+folds
+    dataset=dataset[keep_columns]
+
     dataset_file=os.path.join(os.getcwd(),'datasets', args.dataset+'_'+args.task+'.csv')
     dataset.to_csv(dataset_file)
 

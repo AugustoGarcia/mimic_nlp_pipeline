@@ -13,7 +13,7 @@ import pandas as pd
 import numpy as np
 import random
 from imblearn.under_sampling import RandomUnderSampler
-from sklearn.utils import shuffle
+from sklearn import utils
 
 def remove_uninformative_characters(x):
     y=re.sub('\\[(.*?)\\]','',x) #remove de-identified brackets
@@ -102,9 +102,11 @@ def balance(df,args):
     positive_note_count=len(df_pos.index)
     desired_negative_notes=int(positive_note_count/args.class_balance)
     
+    print(desired_negative_notes)
+    
     # Shuffle the negative ids and count until the number of minimum notes are desired
     negative_ids=df_neg['id'].unique().tolist()
-    negative_ids=shuffle(negative_ids,random_state=42)
+    negative_ids=utils.shuffle(negative_ids,random_state=42)
     selected_negative_ids=[]
     negative_note_count=0
     id_count=0
@@ -114,7 +116,8 @@ def balance(df,args):
         negative_note_count+=len(id_notes.index)
         id_count+=1        
     
-    df_pos=pd.concat(df_pos,df_neg[df_neg['id'].isin(selected_negative_ids)])
-    df_pos=df_pos.reset_index(drop=True)
+    df_neg_selected=df_neg[df_neg['id'].isin(selected_negative_ids)]
+    df=pd.concat([df_pos,df_neg_selected])
+    df=df.reset_index(drop=True)
     
-    return df_pos
+    return df

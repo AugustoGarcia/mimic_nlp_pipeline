@@ -46,7 +46,7 @@ def evaluate(tokenizer,model,df,args,model_args):
 
     gpu_mem=gpu_utilization()
 
-    test_results_file=os.path.join(os.getcwd(),model_args['model_name'],'outputs_'+task_string+'.csv')
+    test_results_file=os.path.join(os.getcwd(),'models',model_args['model_name'],'outputs_'+task_string+'.csv')
     df.to_csv(test_results_file)
 
     df['softmax_0']=0.0
@@ -71,7 +71,7 @@ def evaluate(tokenizer,model,df,args,model_args):
         else:
             vote_df.at[id,'pred']=1
 
-    vote_results_file=os.path.join(os.getcwd(),model_args['model_name'],'votes_'+task_string+'.csv')
+    vote_results_file=os.path.join(os.getcwd(),'models',model_args['model_name'],'votes_'+task_string+'.csv')
     vote_df.to_csv(vote_results_file)
 
     metrics_file=os.path.join(os.getcwd(),'metrics.csv')
@@ -133,8 +133,10 @@ def train(tokenizer,model,args,model_args,train,val,test):
  
     batch_size = model_args["batch_size"]
 
+    output_dir=os.path.join(os.getcwd(),'models',model_args['model_name'])
+
     logging_steps = len(train_ds) // batch_size
-    training_args = TrainingArguments(output_dir=model_args['model_name'], overwrite_output_dir=True, num_train_epochs=3, learning_rate=2e-5, per_device_train_batch_size=batch_size, per_device_eval_batch_size=batch_size,
+    training_args = TrainingArguments(output_dir=output_dir, overwrite_output_dir=True, num_train_epochs=3, learning_rate=2e-5, per_device_train_batch_size=batch_size, per_device_eval_batch_size=batch_size,
         load_best_model_at_end=True, metric_for_best_model="auprc", weight_decay=0.01, evaluation_strategy="epoch", save_strategy="epoch", save_total_limit=1, disable_tqdm=False, logging_steps=logging_steps, seed=42)
 
     trainer = Trainer(model=model, args=training_args, compute_metrics=compute_metrics,train_dataset=train_ds, eval_dataset=val_ds)
@@ -170,13 +172,13 @@ def prepare_dataset(args,dataset_args):
         val=val.head(50)
         test=test.head(50)
 
-    train.to_csv('before.csv')
-
     if args.class_balance != 0:
         train=preprocess.balance(train,args)
-       
-    train.to_csv('after.csv')
-       
+
+    if args.balance_all_datasets:
+        val=preprocess.balance(val,args)
+        test=preprocess.balance(test,args)
+              
     train=preprocess.preprocess_notes(train)
     val=preprocess.preprocess_notes(val)
     test=preprocess.preprocess_notes(test)
@@ -190,6 +192,11 @@ def prepare_dataset(args,dataset_args):
         train=preprocess.split_notes(train,args.sentence_splits)
         val=preprocess.split_notes(val,args.sentence_splits)
         test=preprocess.split_notes(test,args.sentence_splits)
+    
+    # Shuffle datasets, keep only columns of interest
+    train=train.sample(frac=1,random_state=42)
+    val=val.sample(frac=1,random_state=42)
+    test=test.sample(frac=1,random_state=42)
     
     train=train.reset_index(drop=True)
     val=val.reset_index(drop=True)
