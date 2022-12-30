@@ -19,6 +19,18 @@ parser.add_argument("--sentence_splits",
                         required=False,
                         help="Whether text should be split in n-word sentences, default 318 for clinicalbert. Large-input longformer will use 8*this value")
 
+parser.add_argument("--epochs",
+                        default=5,
+                        type=int,
+                        required=False,
+                        help="Train epochs")
+
+parser.add_argument("--lr",
+                        default=2e-5,
+                        type=float,
+                        required=False,
+                        help="Train learning rate")
+
 parser.add_argument("--class_balance", 
                         default=1, 
                         type=float, 
@@ -31,10 +43,9 @@ parser.add_argument("--balance_all_datasets",
                         required=False,
                         help="Whether to balance the train, validation and test sets instead of just the train set")
 
-
 parser.add_argument("--balance_id",
                         default='subject_id',
-                        choices=['subject_id','hadm_id'],
+                        choices=['subject_id','hadm_id','id'],
                         type=str,
                         required=False,
                         help="Choice of id for splitting, between 'subject_id' and 'hadm_id' (admission id). Default is subject id to prevent label leakage")
@@ -58,30 +69,54 @@ parser.add_argument("--folds",
                         help="Number of folds for cross-validation in case dataset is to be created")
 
 parser.add_argument("--test_size", 
-                        default=0.05, 
+                        default=0.1, 
                         type=float, 
                         required=False,
                         help="Test and validation set size, in %. Validation will be an approximation")                        
 
 parser.add_argument("--task",
-                        default='readmission',
+                        default='',
                         choices=['readmission','mortality','both'],
                         type=str,
-                        required=True,
-                        help="Clinical task: readmission prediction (readmission), mortality prediction (mortality), or both as a set of negative outcomes")
+                        required=False,
+                        help="Clinical task: readmission prediction (readmission), mortality prediction (mortality), both as a set of negative outcomes (both)")
 
 parser.add_argument("--dataset",
                         default='early',
-                        choices=['early','discharge'],
+                        choices=['early','discharge','custom','presplit'],
                         type=str,
                         required=True,
-                        help="Task for dataset, 72 hours of ICU notes (early) or discharge summaries (discharge)")                        
+                        help="Task for dataset, 72 hours of ICU notes (early), discharge summaries (discharge), or custom/pre-split dataset")  
+
+parser.add_argument("--dataset_name",
+                        default='custom',
+                        type=str,
+                        required=False,
+                        help="Custom dataset name")  
+
+parser.add_argument("--custom_task_name",
+                        default='',
+                        type=str,
+                        required=False,
+                        help="Custom task name")                        
 
 parser.add_argument("--debug_mode",
                         default=False,
                         type=bool,
                         required=False,
                         help="Debug mode will downsize the train, test and validation sets to 50 rows")
+
+parser.add_argument("--wandb",
+                        default=True,
+                        type=bool,
+                        required=False,
+                        help="Upload training results to wandb")
+
+parser.add_argument("--save_logits",
+                        default=False,
+                        type=bool,
+                        required=False,
+                        help="Save model output logits and vote scores for test sets")
    
 models=['longformer_512','clinicalbert','longformer_4096','longformer_4096_merge']
 
@@ -93,6 +128,9 @@ for model in models:
                         help="Include "+model+" in pipeline")
 
 args = parser.parse_args()
+
+if args.dataset=='custom':
+    args.task=args.custom_task_name
 
 if args.longformer_512 or args.clinicalbert:    
     dataset_args = {
